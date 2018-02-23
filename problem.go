@@ -31,23 +31,10 @@ var grid [][]string = [][]string{
 //	{"t", "y", "u", "i", "o", "p", "a", "s"},
 //}
 
-type Pos struct {
-	Row int
-	Col int
-}
-
-func (p Pos) IsMoveInGrid(move Pos) bool {
-	new := p.Add(move)
-	return new.Row > 0 && new.Col > 0 && new.Row < len(grid) && new.Col < len(grid[0])
-}
-
-func (p Pos) Add(other Pos) Pos {
-	return Pos{p.Row + other.Row, p.Col + other.Col}
-}
-
 // Candidate knight moves, relative values
 var knightSpots []Pos = []Pos{Pos{-2, -1}, Pos{-1, -2}, Pos{1, -2}, Pos{2, -1}, Pos{2, 1}, Pos{1, 2}, Pos{-1, 2}, Pos{-2, 1}}
 
+// Memo map for valid moves
 var moves map[Pos][]Pos = make(map[Pos][]Pos)
 
 func main() {
@@ -60,13 +47,13 @@ func main() {
 		fmt.Println("First arg must be a row number")
 		os.Exit(1)
 	}
-	row--
+	row-- // change to 0 index
 	col, err := strconv.Atoi(os.Args[2])
 	if err != nil {
 		fmt.Println("Second arg must be a column number")
 		os.Exit(1)
 	}
-	col--
+	col-- // change to 0 index
 	reader := bufio.NewReader(os.Stdin)
 	largestLen := 0
 	var words []string
@@ -87,40 +74,28 @@ func main() {
 }
 
 func findLongest(words []string, row, col, maxDepth int) (results []string) {
-	if len(words) < 2 {
-		return words
-	}
-	longest := find(words, Pos{row, col}, "", 0, maxDepth)
-	if len(longest) < 2 {
-		return longest
-	}
-	sort.Slice(longest, func(i, j int) bool { return len(longest[i]) > len(longest[j]) })
-	length := len(longest[0])
-	// Possibly multiple ties in length
-	for _, word := range longest {
-		if len(word) == length {
-			results = append(results, word)
-		}
-	}
-	return results
+	resultSet := NewWordSet()
+	find(words, Pos{row, col}, "", 0, maxDepth, resultSet)
+	return resultSet.Longest()
 }
 
-func find(words []string, p Pos, prefix string, depth, maxDepth int) (results []string) {
-	charAtP := grid[p.Row][p.Col]
-	prefix += charAtP
+// Finds a list of words that can be created from a given starting position.
+// maxDepth prevents the function from walking the board forever,
+// should be set to the longest word in the source data
+func find(words []string, p Pos, prefix string, depth, maxDepth int, results WordSet) {
+	if depth > maxDepth {
+		return
+	}
+	prefix += grid[p.Row][p.Col]
 	narrowed := narrow(words, prefix)
 	if len(narrowed) < 2 {
-		return narrowed
+		results.Add(narrowed...)
+		return
 	}
-	if depth > maxDepth {
-		return []string{}
+	for _, pos := range p.GetMoves() {
+		find(narrowed, pos, prefix, depth+1, maxDepth, results)
 	}
-	for _, pos := range getMoves(p) {
-		//fmt.Printf("%+v, %+v\n", p, pos)
-		words := find(narrowed, pos, prefix, depth+1, maxDepth)
-		results = append(results, words...)
-	}
-	return results
+	return
 }
 
 // This function takes a slice of words, a prefix string, and returns a subslice of only words
@@ -131,11 +106,18 @@ func narrow(words []string, prefix string) []string {
 	prefix2 := prefix[:len(prefix)-1] + string(prefix[len(prefix)-1]+1)
 	bottom := sort.Search(len(words), func(i int) bool { return strings.Compare(words[i], prefix) >= 0 })
 	top := sort.Search(len(words), func(i int) bool { return strings.Compare(words[i], prefix2) >= 0 })
-	//fmt.Printf("%s %s %d %d %+v\n", prefix, prefix2, bottom, top, words[bottom:top])
 	return words[bottom:top]
 }
 
-func getMoves(p Pos) (results []Pos) {
+// Encapsulates row and column positions
+type Pos struct {
+	Row int
+	Col int
+}
+
+// Returns a list of valid moves for a given position, pruning ones not on the board
+// Moves are relative [r, c] coordinates
+func (p Pos) GetMoves() (results []Pos) {
 	var ok bool
 	results, ok = moves[p]
 	if ok {
@@ -148,4 +130,89 @@ func getMoves(p Pos) (results []Pos) {
 	}
 	moves[p] = results
 	return
+}
+
+// Checks whether or not a given move will be inside the grid
+func (p Pos) IsMoveInGrid(move Pos) bool {
+	new := p.Add(move)
+	return new.Row > 0 && new.Col > 0 && new.Row < len(grid) && new.Col < len(grid[0])
+}
+
+// Adds two positions together, just like adding vectors
+func (p Pos) Add(other Pos) Pos {
+	return Pos{p.Row + other.Row, p.Col + other.Col}
+}
+
+// Simple string set backed by a map, used to avoid selecting duplicate
+// words from different walks of the board. Also keep track of the longest
+// word, removing the need to sort to find the longest word.
+type WordSet interface {
+	Add(words ...string)
+	Values() []string
+	Longest() []string
+	Count() int
+}
+
+func NewWordSet() (result WordSet) {
+	result = &mapWordSet{
+		words:      map[string]byte{},
+		longestLen: 0,
+		longest:    []string{},
+	}
+	return
+}
+
+// WordSet backed by a map
+type mapWordSet struct {
+	// Only the key is useful, ignore the value
+	words      map[string]byte
+	longestLen int
+	longest    []string
+}
+
+// Add a word to the set
+func (m *mapWordSet) Add(words ...string) {
+	for _, word := range words {
+		if _, exists := m.words[word]; exists {
+			continue
+		}
+
+		m.words[word] = 0 // value is unused
+
+		// Keep track of longest words
+		wordLen := len(word)
+		if wordLen > m.longestLen {
+			// Word is longer than any found so far, toss old words
+			m.longest = []string{word}
+			m.longestLen = wordLen
+		} else if wordLen == m.longestLen {
+			// Word is a tie
+			m.longest = append(m.longest, word)
+		}
+	}
+}
+
+// Returns the longest word in the set
+func (m *mapWordSet) Longest() []string {
+	return m.longest
+}
+
+// Extracts values as a new slice
+func (m *mapWordSet) Values() []string {
+	values := make([]string, len(m.words))
+	i := 0
+	for word := range m.words {
+		values[i] = word
+		i++
+	}
+	return values
+}
+
+func (m *mapWordSet) Count() int {
+	return len(m.words)
+}
+
+// Pretty print the set
+func (m *mapWordSet) String() string {
+	return strings.Join(m.Values(), ",")
 }
