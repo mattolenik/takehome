@@ -1,5 +1,3 @@
-# ExtraHop Programming Challenge
-
 ## Prerequesites
 Just Go.
 
@@ -59,9 +57,9 @@ g = num grid spaces
 n = number of words
 
 Time complexity is:
-O(g*x*2logn)
+O(g⋅x⋅2⋅log(n))
 
-2logn comes from the two binary searches described in step 2 above. That step is performed once for each level of recursive, which happens at most x times per spot, and then once for each spot on the grid. For a given grid size, assuming the words are of reasonble length, the complexity will roughly follow O(2logn).
+2⋅log(n) comes from the two binary searches described in step 2 above. That step is performed once for each level of recursive, which happens at most x times per spot, and then once for each spot on the grid. For a given grid size, assuming the words are of reasonble length, the complexity will roughly follow O(2⋅log(n)).
 
 
 ### Space Complexity
