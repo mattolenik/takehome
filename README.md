@@ -40,13 +40,13 @@ although
 1. Load words into array
 2. Get letter at current grid position (call this 'prefix')
 3. Narrow list of words to those beginning with said prefix
-  1. Do binary search for prefix to find lower bound, the first value to start with prefix
-  2. Do binary search for prefix but increment last character, e.g. "abc" becomes "abd" -- this selects the upper bound, the last value to start with prefix
-  3. Return a slice narrowed to those boundaries, i.e. `words[lower:upper]`
-  4. Go slices do not reallocate so this substep only takes 2log(n) time and no additional space
+    1. Do binary search for prefix to find lower bound, the first value to start with prefix
+    2. Do binary search for prefix but increment last character, e.g. "abc" becomes "abd" -- this selects the upper bound, the last value to start with prefix
+    3. Return a slice narrowed to those boundaries, i.e. `words[lower:upper]`
+    4. Go slices do not reallocate so this substep only takes 2log(n) time and no additional space
 4. For each valid knight move, recursively repeat step 2 for each new position
 5. The recursive call completes when the list has been narrowed to one item (the longest word, the result we want), or when the list has been narrowed to an empty list (no word can be formed)
-  1. The recursion will also terminate at a max depth, which is set to the length of the longest word in the input
+    1. The recursion will also terminate at a max depth, which is set to the length of the longest word in the input
 
 A small set type, backed by a map, was made to keep track of found words. This type keeps track of the longest found words and removes duplicates. When the search is done, this set will already contain the longest word (or words if there are ties). This is as opposed to e.g. adding all the matches to a list, sorting the list, then taking the top result.
 
